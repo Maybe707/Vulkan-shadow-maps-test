@@ -29,5 +29,6 @@ void main()
 	outNormal = mat3(ubo.model) * inNormal;
 	fragmentPosition = vec3(ubo.model * vec4(inPos, 1.0));
 	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPos, 1.0);
+	fragmentPositionLightSpace = ubo.lightSpace * ubo.model * vec4(inPos, 1.0);
 }
 
