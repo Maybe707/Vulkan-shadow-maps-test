@@ -14,7 +14,7 @@
 #include "WindowXVulkan.hpp"
 #endif
 
-#include "VertexMath.hpp"
+//#include "VertexMath.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -45,9 +45,9 @@ const uint32_t HEIGHT = 600;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //glm::vec3 g_lightColor =  glm::vec3(1.0f, 1.0f, 1.0f);
-glm::vec3 g_lightPositoin = glm::vec3(-5.5f, -10.0f, -5.5f);
+glm::vec3 g_lightPositoin = glm::vec3(-5.5f, -10.0f, -15.5f);
 //glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
-glm::vec3 g_viewPosition = glm::vec3(5.5f, -22.5f, -30.0f);
+glm::vec3 g_viewPosition = glm::vec3(5.5f, -12.5f, -15.0f);
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -1750,7 +1750,7 @@ private:
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 			unsigned int secondObjectIndex = 2 + currentFrame;
-			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -1.9f, 1.0f), 0.3);
+			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.9f, 1.0f), 0.3);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1800,7 +1800,7 @@ private:
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -1.9f, 1.0f), 0.3);
+			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.9f, 1.0f), 0.3);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1866,6 +1866,9 @@ private:
 //		g_lightPositoin = glm::vec3(sin(time) + cos(time), 2.0f, -30.0);
 		glm::mat4 view = glm::lookAt(g_lightPositoin, glm::vec3(0.0f, -3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
+		// glm::mat4 proj = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f,
+		// 											  0.1f, 50.0f);
+
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
 //        ubo.proj[1][1] *= -1;
@@ -1899,8 +1902,11 @@ private:
 		ubo.model[3][0] = objectPosition[0];
 		ubo.model[3][1] = objectPosition[1];
 		ubo.model[3][2] = objectPosition[2];
+
         ubo.view = glm::lookAt(g_viewPosition, glm::vec3(0.0f, -3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
+		// glm::mat4 proj = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f,
+		// 											  0.1f, 50.0f);
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
 //        ubo.proj[1][1] *= -1;

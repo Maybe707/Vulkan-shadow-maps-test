@@ -20,7 +20,7 @@ float textureProj(vec4 shadowCoord, vec2 off)
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
 	{
 //		float dist = texture( shadowMap, shadowCoord.st + off ).r;
-		float dist = texture( shadowMap, shadowCoord.xy ).r;
+		float dist = texture( shadowMap, shadowCoord.st ).r;
 		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
 		{
 			shadow = ambient;
@@ -65,8 +65,10 @@ float filterPCF(vec4 sc)
 // }
 
 void main() 
-{	
-	float shadow = (enablePCF == 1) ? filterPCF(inShadowCoord / inShadowCoord.w) : textureProj(inShadowCoord / inShadowCoord.w, vec2(0.0));
+{
+	vec4 inShadow = inShadowCoord / inShadowCoord.w;
+	inShadow = inShadow * 0.5 + 0.5;
+	float shadow = (enablePCF == 1) ? filterPCF(inShadowCoord / inShadowCoord.w) : textureProj(inShadow, vec2(0.0));
 
 //	float shadow = textureProjShadow(inShadowCoord / inShadowCoord.w, vec2(0.0));
 
@@ -78,4 +80,6 @@ void main()
 
 	outFragColor = vec4(diffuse * shadow, 1.0);
 //	outFragColor = vec4(shadow, shadow, shadow, 1.0);
+//	outFragColor = vec4(inShadow.x, inShadow.y, 0.0, 1.0);
 }
+

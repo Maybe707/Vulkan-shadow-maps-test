@@ -28,12 +28,13 @@ const mat4 biasMat = mat4(
 void main() 
 {
 	outColor = inColor;
-	outNormal = inNormal;
+//	outNormal = inNormal;
 
 	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPos.xyz, 1.0);
 	
     vec4 pos = ubo.model * vec4(inPos, 1.0);
     outNormal = mat3(ubo.model) * inNormal;
+//	outNormal = transpose(inverse(mat3(ubo.model))) * inNormal;
     outLightVec = normalize(ubo.lightPos.xyz - inPos);
     outViewVec = -pos.xyz;			
 
