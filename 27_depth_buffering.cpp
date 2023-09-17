@@ -45,7 +45,7 @@ const uint32_t HEIGHT = 600;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //glm::vec3 g_lightColor =  glm::vec3(1.0f, 1.0f, 1.0f);
-glm::vec3 g_lightPositoin = glm::vec3(-5.5f, -10.0f, -15.5f);
+glm::vec3 g_lightPositoin = glm::vec3(-2.0f, 4.0f, -1.0f);
 //glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
 glm::vec3 g_viewPosition = glm::vec3(5.5f, -12.5f, -15.0f);
 
@@ -142,7 +142,8 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
 	alignas(16) glm::mat4 lightSpaceMatrix;
-	alignas(16) glm::vec4 lightPosition;
+	alignas(16) glm::vec3 lightPosition;
+	alignas(16) glm::vec3 viewPosition;
 };
 
 struct LightUBO {
@@ -1744,13 +1745,13 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, -0.1f, 1.7f), 3.9f);
+			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 0.5f);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[currentFrame], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 			unsigned int secondObjectIndex = 2 + currentFrame;
-			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.9f, 1.0f), 0.3);
+			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(2.0f, 0.0f, 1.0f), 3.5);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1795,12 +1796,12 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateUniformBuffer(currentFrame, glm::vec3(0.0f, -0.1f, 1.7f), 3.9);
+			updateUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 0.5f);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.9f, 1.0f), 0.3);
+			updateUniformBuffer(secondObjectIndex, glm::vec3(2.0f, 0.0f, 1.0f), 3.5);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1879,7 +1880,7 @@ private:
 		ubo.proj = proj;
 				
 //		ubo.mvp = proj * view * model;
-		lightSpaceMatrix = proj * view * model;
+		lightSpaceMatrix = proj * view;
 		
         memcpy(directionalLightShadowMapUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
@@ -1912,7 +1913,9 @@ private:
 //        ubo.proj[1][1] *= -1;
 
 		ubo.lightSpaceMatrix = lightSpaceMatrix;
-		ubo.lightPosition = glm::vec4(g_lightPositoin, 1.0);
+		ubo.lightPosition = g_lightPositoin;
+		ubo.viewPosition = g_viewPosition;
+		
 		
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 

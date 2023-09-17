@@ -10,34 +10,26 @@ layout (binding = 0) uniform UBO
 	mat4 view;
 	mat4 projection;
 	mat4 lightSpace;
-	vec4 lightPos;
+	vec3 lightPos;
+	vec3 viewPos;
 } ubo;
 
-layout (location = 0) out vec3 outNormal;
-layout (location = 1) out vec3 outColor;
-layout (location = 2) out vec3 outViewVec;
-layout (location = 3) out vec3 outLightVec;
-layout (location = 4) out vec4 outShadowCoord;
 
-const mat4 biasMat = mat4( 
-	0.5, 0.0, 0.0, 0.0,
-	0.0, 0.5, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.0, 1.0 );
+layout (location = 0) out vec3 fragmentPosition;
+layout (location = 1) out vec3 outNormal;
+layout (location = 2) out vec3 outColor;
+layout (location = 3) out vec4 fragmentPositionLightSpace;
+layout (location = 4) out vec3 outLightPosition;
+layout (location = 5) out vec3 outViewPosition;
 
 void main() 
 {
+	outLightPosition = ubo.lightPos;
+	outViewPosition = ubo.viewPos;
+	fragmentPosition = vec3(ubo.model * vec4(inPos, 1.0));
+	outNormal = transpose(inverse(mat3(ubo.model))) * inNormal;
 	outColor = inColor;
-//	outNormal = inNormal;
-
-	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPos.xyz, 1.0);
-	
-    vec4 pos = ubo.model * vec4(inPos, 1.0);
-    outNormal = mat3(ubo.model) * inNormal;
-//	outNormal = transpose(inverse(mat3(ubo.model))) * inNormal;
-    outLightVec = normalize(ubo.lightPos.xyz - inPos);
-    outViewVec = -pos.xyz;			
-
-	outShadowCoord = ( ubo.lightSpace * ubo.model ) * vec4(inPos, 1.0);	
+	fragmentPositionLightSpace = ubo.lightSpace * vec4(fragmentPosition, 1.0);
+	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPos, 1.0);
 }
 

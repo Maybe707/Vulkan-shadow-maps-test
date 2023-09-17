@@ -2,84 +2,57 @@
 
 layout (binding = 1) uniform sampler2D shadowMap;
 
-layout (location = 0) in vec3 inNormal;
-layout (location = 1) in vec3 inColor;
-layout (location = 2) in vec3 inViewVec;
-layout (location = 3) in vec3 inLightVec;
-layout (location = 4) in vec4 inShadowCoord;
-
-layout (constant_id = 0) const int enablePCF = 0;
-
 layout (location = 0) out vec4 outFragColor;
 
-#define ambient 0.1
+layout (location = 0) in vec3 fragmentPosition;
+layout (location = 1) in vec3 inNormal;
+layout (location = 2) in vec3 inColor;
+layout (location = 3) in vec4 fragmentPositionLightSpace;
+layout (location = 4) in vec3 inLightPosition;
+layout (location = 5) in vec3 inViewPosition;
 
-float textureProj(vec4 shadowCoord, vec2 off)
-{
-	float shadow = 1.0;
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
-	{
-//		float dist = texture( shadowMap, shadowCoord.st + off ).r;
-		float dist = texture( shadowMap, shadowCoord.st ).r;
-		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
-		{
-			shadow = ambient;
-		}
-	}
+float computeShadows(vec4 fragmentPositionLightSpace) {
+	vec3 projectiveCoordinates = fragmentPositionLightSpace.xyz / fragmentPositionLightSpace.w;
+	projectiveCoordinates = projectiveCoordinates * 0.5 + 0.5;
+
+	float closestDepth = texture(shadowMap, projectiveCoordinates.xy).r;
+	float currentDepth = projectiveCoordinates.z;
+
+	vec3 normal = normalize(inNormal);
+	vec3 lightDirection = normalize(inLightPosition - fragmentPosition);
+	float bias = max(0.05 * (1.0 - dot(normal, lightDirection)), 0.005);
+	float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+	if(projectiveCoordinates.z > 1.0)
+		shadow = 0.0;
+	
 	return shadow;
 }
 
-float filterPCF(vec4 sc)
+void main()
 {
-	ivec2 texDim = textureSize(shadowMap, 0);
-	float scale = 1.5;
-	float dx = scale * 1.0 / float(texDim.x);
-	float dy = scale * 1.0 / float(texDim.y);
+	vec3 color = inColor;
+	vec3 normal = normalize(inNormal);
+	vec3 lightColor = vec3(0.6);
 
-	float shadowFactor = 0.0;
-	int count = 0;
-	int range = 1;
-	
-	for (int x = -range; x <= range; x++)
-	{
-		for (int y = -range; y <= range; y++)
-		{
-			shadowFactor += textureProj(sc, vec2(dx*x, dy*y));
-			count++;
-		}
-	
-	}
-	return shadowFactor / count;
+	vec3 ambient = 0.3 * lightColor;
+
+	vec3 lightDirection = normalize(inLightPosition - fragmentPosition);
+	float diff = max(dot(lightDirection, normal), 0.0);
+	vec3 diffuse = diff * lightColor;
+
+	vec3 viewDirection = normalize(inViewPosition - fragmentPosition);
+	vec3 reflectDirection = reflect(-lightDirection, normal);
+	float spec = 0.0;
+
+	vec3 halfwayDirection = normalize(lightDirection + viewDirection);
+	spec = pow(max(dot(normal, halfwayDirection), 0.0), 64.0);
+	vec3 specular = spec * lightColor;
+
+	float shadow = computeShadows(fragmentPositionLightSpace);
+	vec3 lightning = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
+
+	outFragColor = vec4(lightning, 1.0);
 }
 
-// float textureProjShadow(vec4 shadowCoord, vec2 off)
-// {
-// 	float shadow = 1.0;
-// 		float dist = texture( shadowMap, shadowCoord.xy ).r;
-// 		if ( dist < shadowCoord.z ) 
-// 		{
-// 			shadow = ambient;
-// 		}
-
-// 	return shadow;
-// }
-
-void main() 
-{
-	vec4 inShadow = inShadowCoord / inShadowCoord.w;
-	inShadow = inShadow * 0.5 + 0.5;
-	float shadow = (enablePCF == 1) ? filterPCF(inShadowCoord / inShadowCoord.w) : textureProj(inShadow, vec2(0.0));
-
-//	float shadow = textureProjShadow(inShadowCoord / inShadowCoord.w, vec2(0.0));
-
-	vec3 N = normalize(inNormal);
-	vec3 L = normalize(inLightVec);
-	vec3 V = normalize(inViewVec);
-	vec3 R = normalize(-reflect(L, N));
-	vec3 diffuse = max(dot(N, L), ambient) * inColor;
-
-	outFragColor = vec4(diffuse * shadow, 1.0);
-//	outFragColor = vec4(shadow, shadow, shadow, 1.0);
-//	outFragColor = vec4(inShadow.x, inShadow.y, 0.0, 1.0);
-}
 
