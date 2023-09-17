@@ -24,12 +24,10 @@ layout (location = 5) out vec3 outViewPosition;
 
 void main() 
 {
-	outLightPosition = ubo.lightPos;
-	outViewPosition = ubo.viewPos;
-	fragmentPosition = vec3(ubo.model * vec4(inPos, 1.0));
-	outNormal = transpose(inverse(mat3(ubo.model))) * inNormal;
 	outColor = inColor;
-	fragmentPositionLightSpace = ubo.lightSpace * vec4(fragmentPosition, 1.0);
+	outLightPosition = ubo.lightPos;
+	outNormal = mat3(ubo.model) * inNormal;
+	fragmentPosition = vec3(ubo.model * vec4(inPos, 1.0));
 	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPos, 1.0);
 }
 

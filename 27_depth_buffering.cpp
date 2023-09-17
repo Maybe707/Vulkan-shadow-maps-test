@@ -45,7 +45,7 @@ const uint32_t HEIGHT = 600;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //glm::vec3 g_lightColor =  glm::vec3(1.0f, 1.0f, 1.0f);
-glm::vec3 g_lightPositoin = glm::vec3(-2.0f, 4.0f, -1.0f);
+glm::vec3 g_lightPositoin = glm::vec3(7.0f, -8.0f, -5.0f);
 //glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
 glm::vec3 g_viewPosition = glm::vec3(5.5f, -12.5f, -15.0f);
 
@@ -1865,7 +1865,7 @@ private:
 		// g_lightPositoin.z = 25.0f + sin(glm::radians(time * 360.0f)) * 5.0f;
 
 //		g_lightPositoin = glm::vec3(sin(time) + cos(time), 2.0f, -30.0);
-		glm::mat4 view = glm::lookAt(g_lightPositoin, glm::vec3(0.0f, -3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::mat4 view = glm::lookAt(g_lightPositoin, glm::vec3(0.0f, -4.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
 		// glm::mat4 proj = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f,
 		// 											  0.1f, 50.0f);
@@ -1904,7 +1904,7 @@ private:
 		ubo.model[3][1] = objectPosition[1];
 		ubo.model[3][2] = objectPosition[2];
 
-        ubo.view = glm::lookAt(g_viewPosition, glm::vec3(0.0f, -3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.view = glm::lookAt(g_viewPosition, glm::vec3(2.0f, -1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
 		// glm::mat4 proj = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f,
 		// 											  0.1f, 50.0f);
