@@ -21,6 +21,7 @@
 #define GLM_FORCE_RIGHT_HANDED
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -45,9 +46,9 @@ const uint32_t HEIGHT = 600;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //glm::vec3 g_lightColor =  glm::vec3(1.0f, 1.0f, 1.0f);
-glm::vec3 g_lightPositoin = glm::vec3(7.0f, -8.0f, -5.0f);
+glm::vec3 g_lightPositoin = glm::vec3(0.0f, -4.5f, 0.0f);
 //glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
-glm::vec3 g_viewPosition = glm::vec3(5.5f, -12.5f, -15.0f);
+glm::vec3 g_viewPosition = glm::vec3(5.5f, -37.5f, -152.0f);
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -97,7 +98,7 @@ struct SwapChainSupportDetails {
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 normal;
-    glm::vec3 color;
+    glm::vec2 textureCoordinates;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -123,8 +124,8 @@ struct Vertex {
 
         attributeDescriptions[2].binding = 0;
         attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, color);
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(Vertex, textureCoordinates);
 
         return attributeDescriptions;
     }
@@ -197,47 +198,47 @@ struct LightUBO {
 
 const std::vector<Vertex> vertices = {
 	// back face
-	{{-1.0f, -1.0f, -1.0f},  {0.0f,  0.0f, -1.0f}, {0.3, 0.3, 0.3}}, // bottom-left
-	{{1.0f,  1.0f, -1.0f},  {0.0f,  0.0f, -1.0f},  {0.3, 0.3, 0.3}}, // top-right
-	{{1.0f, -1.0f, -1.0f},  {0.0f,  0.0f, -1.0f},  {0.3, 0.3, 0.3}}, // bottom-right         
-	{{1.0f,  1.0f, -1.0f},  {0.0f,  0.0f, -1.0f},  {0.3, 0.3, 0.3}}, // top-right
-	{{-1.0f, -1.0f, -1.0f},  {0.0f,  0.0f, -1.0f}, {0.3, 0.3, 0.3}}, // bottom-left
-	{{-1.0f,  1.0f, -1.0f},  {0.0f,  0.0f, -1.0f}, {0.3, 0.3, 0.3}}, // top-left
-	// front face									  3	   3	3
-	{{-1.0f, -1.0f,  1.0f},  {0.0f,  0.0f,  1.0f}, {0.3, 0.3, 0.3}}, // bottom-left
-	{{1.0f, -1.0f,  1.0f},  {0.0f,  0.0f,  1.0f},  {0.3, 0.3, 0.3}}, // bottom-right
-	{{1.0f,  1.0f,  1.0f},  {0.0f,  0.0f,  1.0f},  {0.3, 0.3, 0.3}}, // top-right
-	{{1.0f,  1.0f,  1.0f},  {0.0f,  0.0f,  1.0f},  {0.3, 0.3, 0.3}}, // top-right
-	{{-1.0f,  1.0f,  1.0f},  {0.0f,  0.0f,  1.0f}, {0.3, 0.3, 0.3}}, // top-left
-	{{-1.0f, -1.0f,  1.0f},  {0.0f,  0.0f,  1.0f}, {0.3, 0.3, 0.3}}, // bottom-left
-	// left face									  3	   3	3
-	{{-1.0f,  1.0f,  1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-right
-	{{-1.0f,  1.0f, -1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-left
-	{{-1.0f, -1.0f, -1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3, 0.3}}, // bottom-left
-	{{-1.0f, -1.0f, -1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3, 0.3}}, // bottom-left
-	{{-1.0f, -1.0f,  1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3, 0.3}}, // bottom-right
-	{{-1.0f,  1.0f,  1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-right
-	// right face									  3	   3	3
-	{{1.0f,  1.0f,  1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3, 0.3}}, // top-left
-	{{1.0f, -1.0f, -1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-right
-	{{1.0f,  1.0f, -1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3, 0.3}}, // top-right         
-	{{1.0f, -1.0f, -1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-right
-	{{1.0f,  1.0f,  1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3, 0.3}}, // top-left
-	{{1.0f, -1.0f,  1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-left     
-	// bottom face									  3	   3	3
-	{{-1.0f, -1.0f, -1.0f},  {0.0f, -1.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-right
-	{{1.0f, -1.0f, -1.0f},  {0.0f, -1.0f,  0.0f},  {0.3, 0.3, 0.3}}, // top-left
-	{{1.0f, -1.0f,  1.0f},  {0.0f, -1.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-left
-	{{1.0f, -1.0f,  1.0f},  {0.0f, -1.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-left
-	{{-1.0f, -1.0f,  1.0f},  {0.0f, -1.0f,  0.0f}, {0.3, 0.3, 0.3}}, // bottom-right
-	{{-1.0f, -1.0f, -1.0f},  {0.0f, -1.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-right
-	// top face										  3	   3	3
-	{{-1.0f,  1.0f, -1.0f},  {0.0f,  1.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-left
-	{{1.0f,  1.0f , 1.0f},  {0.0f,  1.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-right
-	{{1.0f,  1.0f, -1.0f},  {0.0f,  1.0f,  0.0f},  {0.3, 0.3, 0.3}}, // top-right     
-	{{1.0f,  1.0f,  1.0f},  {0.0f,  1.0f,  0.0f},  {0.3, 0.3, 0.3}}, // bottom-right
-	{{-1.0f,  1.0f, -1.0f},  {0.0f,  1.0f,  0.0f}, {0.3, 0.3, 0.3}}, // top-left
-	{{-1.0f,  1.0f,  1.0f},  {0.0f,  1.0f,  0.0f}, {0.3, 0.3, 0.3}}  // bottom-left        
+	{{-1.0f, -1.0f, -1.0f},  {0.0f,  0.0f, -1.0f}, {0.0, 1.0 }}, // bottom-left
+	{{1.0f,  1.0f, -1.0f},  {0.0f,  0.0f, -1.0f},  {1.0, 0.0 }}, // top-right
+	{{1.0f, -1.0f, -1.0f},  {0.0f,  0.0f, -1.0f},  {1.0, 1.0 }}, // bottom-right         
+	{{1.0f,  1.0f, -1.0f},  {0.0f,  0.0f, -1.0f},  {1.0, 0.0 }}, // top-right
+	{{-1.0f, -1.0f, -1.0f},  {0.0f,  0.0f, -1.0f}, {0.0, 1.0 }}, // bottom-left
+	{{-1.0f,  1.0f, -1.0f},  {0.0f,  0.0f, -1.0f}, {0.0, 0.0 }}, // top-left
+	// front face									  3	   3 
+	{{-1.0f, -1.0f,  1.0f},  {0.0f,  0.0f,  1.0f}, {0.3, 0.3 }}, // bottom-left
+	{{1.0f, -1.0f,  1.0f},  {0.0f,  0.0f,  1.0f},  {0.3, 0.3 }}, // bottom-right
+	{{1.0f,  1.0f,  1.0f},  {0.0f,  0.0f,  1.0f},  {0.3, 0.3 }}, // top-right
+	{{1.0f,  1.0f,  1.0f},  {0.0f,  0.0f,  1.0f},  {0.3, 0.3 }}, // top-right
+	{{-1.0f,  1.0f,  1.0f},  {0.0f,  0.0f,  1.0f}, {0.3, 0.3 }}, // top-left
+	{{-1.0f, -1.0f,  1.0f},  {0.0f,  0.0f,  1.0f}, {0.3, 0.3 }}, // bottom-left
+	// left face									  3	   3 
+	{{-1.0f,  1.0f,  1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3 }}, // top-right
+	{{-1.0f,  1.0f, -1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3 }}, // top-left
+	{{-1.0f, -1.0f, -1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3 }}, // bottom-left
+	{{-1.0f, -1.0f, -1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3 }}, // bottom-left
+	{{-1.0f, -1.0f,  1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3 }}, // bottom-right
+	{{-1.0f,  1.0f,  1.0f}, {-1.0f,  0.0f,  0.0f}, {0.3, 0.3 }}, // top-right
+	// right face									  3	   3 
+	{{1.0f,  1.0f,  1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3 }}, // top-left
+	{{1.0f, -1.0f, -1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3 }}, // bottom-right
+	{{1.0f,  1.0f, -1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3 }}, // top-right         
+	{{1.0f, -1.0f, -1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3 }}, // bottom-right
+	{{1.0f,  1.0f,  1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3 }}, // top-left
+	{{1.0f, -1.0f,  1.0f},  {1.0f,  0.0f,  0.0f},  {0.3, 0.3 }}, // bottom-left     
+	// bottom face									  3	   3 
+	{{-1.0f, -1.0f, -1.0f},  {0.0f, -1.0f,  0.0f}, {0.3, 0.3 }}, // top-right
+	{{1.0f, -1.0f, -1.0f},  {0.0f, -1.0f,  0.0f},  {0.3, 0.3 }}, // top-left
+	{{1.0f, -1.0f,  1.0f},  {0.0f, -1.0f,  0.0f},  {0.3, 0.3 }}, // bottom-left
+	{{1.0f, -1.0f,  1.0f},  {0.0f, -1.0f,  0.0f},  {0.3, 0.3 }}, // bottom-left
+	{{-1.0f, -1.0f,  1.0f},  {0.0f, -1.0f,  0.0f}, {0.3, 0.3 }}, // bottom-right
+	{{-1.0f, -1.0f, -1.0f},  {0.0f, -1.0f,  0.0f}, {0.3, 0.3 }}, // top-right
+	// top face										  3	   3 
+	{{-1.0f,  1.0f, -1.0f},  {0.0f,  1.0f,  0.0f}, {0.3, 0.3 }}, // top-left
+	{{1.0f,  1.0f , 1.0f},  {0.0f,  1.0f,  0.0f},  {0.3, 0.3 }}, // bottom-right
+	{{1.0f,  1.0f, -1.0f},  {0.0f,  1.0f,  0.0f},  {0.3, 0.3 }}, // top-right     
+	{{1.0f,  1.0f,  1.0f},  {0.0f,  1.0f,  0.0f},  {0.3, 0.3 }}, // bottom-right
+	{{-1.0f,  1.0f, -1.0f},  {0.0f,  1.0f,  0.0f}, {0.3, 0.3 }}, // top-left
+	{{-1.0f,  1.0f,  1.0f},  {0.0f,  1.0f,  0.0f}, {0.3, 0.3 }}  // bottom-left        
 };
 
 // const std::vector<Vertex> vertices = {
@@ -903,6 +904,7 @@ private:
         depthStencil.depthTestEnable = VK_TRUE;
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+//		depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 //		depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
         depthStencil.depthBoundsTestEnable = VK_FALSE;
         depthStencil.stencilTestEnable = VK_FALSE;
@@ -1028,6 +1030,7 @@ private:
         depthStencil.depthTestEnable = VK_TRUE;
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+//		depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 //		depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
         depthStencil.depthBoundsTestEnable = VK_FALSE;
         depthStencil.stencilTestEnable = VK_FALSE;
@@ -1253,7 +1256,7 @@ private:
 		sampler.magFilter = shadowmap_filter;
 		sampler.minFilter = shadowmap_filter;
 		sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 		sampler.addressModeV = sampler.addressModeU;
 		sampler.addressModeW = sampler.addressModeU;
 		sampler.mipLodBias = 0.0f;
@@ -1745,13 +1748,13 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 0.5f);
+			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 1.5f);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[currentFrame], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 			unsigned int secondObjectIndex = 2 + currentFrame;
-			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(2.0f, 0.0f, 1.0f), 3.5);
+			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, 10.0f, 0.0f), 10.5);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1796,12 +1799,12 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 0.5f);
+			updateUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 1.0f);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-			updateUniformBuffer(secondObjectIndex, glm::vec3(2.0f, 0.0f, 1.0f), 3.5);
+			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, 10.0f, 0.0f), 10.5);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1860,21 +1863,26 @@ private:
 		model[3][1] = objectPosition[1];
 		model[3][2] = objectPosition[2];
 
-		// g_lightPositoin.x = cos(glm::radians(time * 360.0f)) * 40.0f;
-		// g_lightPositoin.y = -50.0f + sin(glm::radians(time * 360.0f)) * 20.0f;
-		// g_lightPositoin.z = 25.0f + sin(glm::radians(time * 360.0f)) * 5.0f;
+		// model[0][3] = objectPosition[0];
+		// model[1][3] = objectPosition[1];
+		// model[2][3] = objectPosition[2];
+		
+		g_lightPositoin.x = cos(glm::radians(time * 360.0f)) * 5;
+//		g_lightPositoin.y = sin(glm::radians(time * 360.0f));
+//		g_lightPositoin.z = sin(glm::radians(time * 36.0f));
 
 //		g_lightPositoin = glm::vec3(sin(time) + cos(time), 2.0f, -30.0);
-		glm::mat4 view = glm::lookAt(g_lightPositoin, glm::vec3(0.0f, -4.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
-		// glm::mat4 proj = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f,
-		// 											  0.1f, 50.0f);
+		glm::mat4 view = glm::lookAt(g_lightPositoin, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f));
+		// glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
+		glm::mat4 proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f,
+													  0.1f, 30.0f);
 
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
 //        ubo.proj[1][1] *= -1;
 
-
+		std::cout << glm::to_string(view) << std::endl;
+		
 		ubo.model = model;
 		ubo.view = view;
 		ubo.proj = proj;
@@ -1904,14 +1912,21 @@ private:
 		ubo.model[3][1] = objectPosition[1];
 		ubo.model[3][2] = objectPosition[2];
 
-        ubo.view = glm::lookAt(g_viewPosition, glm::vec3(2.0f, -1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
-		// glm::mat4 proj = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f,
-		// 											  0.1f, 50.0f);
+		// ubo.model[0][3] = objectPosition[0];
+		// ubo.model[1][3] = objectPosition[1];
+		// ubo.model[2][3] = objectPosition[2];
+		
+		glm::mat4 view = glm::lookAt(g_viewPosition, glm::vec3(2.0f, 3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		// glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
+		glm::mat4 proj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f,
+													  0.1f, 200.0f);
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
 //        ubo.proj[1][1] *= -1;
 
+		ubo.view = view;
+		ubo.proj = proj;
+		
 		ubo.lightSpaceMatrix = lightSpaceMatrix;
 		ubo.lightPosition = g_lightPositoin;
 		ubo.viewPosition = g_viewPosition;
