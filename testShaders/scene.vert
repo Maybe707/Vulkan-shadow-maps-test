@@ -4,7 +4,7 @@ layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec3 inNormal;
 layout (location = 2) in vec2 inTexCoordinates;
 
-layout (binding = 0) uniform UBO 
+layout (set = 0, binding = 0) uniform UBO 
 {
 	mat4 model;
 	mat4 view;
@@ -22,8 +22,8 @@ layout (location = 3) out vec4 fragmentPositionLightSpace;
 layout (location = 4) out vec3 outLightPosition;
 layout (location = 5) out vec3 outViewPosition;
 
-void main() 
-{
+
+void main() {
 	outTextureCoordinates = inTexCoordinates;
 	outLightPosition = ubo.lightPos;
 	outNormal = mat3(ubo.model) * inNormal;

@@ -14,6 +14,9 @@
 #include "WindowXVulkan.hpp"
 #endif
 
+#define VK_DEBUG_IMAGE_SET_RED "\x1b[31mVULKAN DEBUG IMAGE\x1b[0m"
+#define SHADOW_MAP_SIZE 2048
+
 //#include "VertexMath.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -40,15 +43,17 @@
 #include <optional>
 #include <set>
 
+#include "ToString.hpp"
+
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //glm::vec3 g_lightColor =  glm::vec3(1.0f, 1.0f, 1.0f);
-glm::vec3 g_lightPositoin = glm::vec3(0.0f, -4.5f, 0.0f);
-//glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
-glm::vec3 g_viewPosition = glm::vec3(5.5f, -37.5f, -152.0f);
+glm::vec3 g_lightPositoin = glm::vec3(0.0f, -7.5f, 0.0f);
+// glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
+glm::vec3 g_viewPosition = glm::vec3(1.5f, -7.0f, -5.5f);
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -99,7 +104,8 @@ struct Vertex {
     glm::vec3 pos;
     glm::vec3 normal;
     glm::vec2 textureCoordinates;
-
+	
+	
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
@@ -293,17 +299,17 @@ private:
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
-
+	
     VkSwapchainKHR swapChain;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
-	std::vector<VkFramebuffer> directionalLightShadowMapSwapChainFramebuffers;
+	std::vector<VkFramebuffer> cubeShadowMapFramebuffers;
 
 	VkRenderPass directionalLightShadowMapRenderPass;
-	VkDescriptorSetLayout directionalLightShadowMapDescriptorSetLayout;
+	VkDescriptorSetLayout cubeShadowMapDescriptorSetLayout;
 	VkPipelineLayout directionalLightShadowMapPipelineLayout;
     VkPipeline directionalLightShadowMapGraphicsPipeline;
 	glm::mat4 lightSpaceMatrix;
@@ -315,9 +321,13 @@ private:
 
     VkCommandPool commandPool;
 
-    VkImage directionalLightShadowMapDepthImage;
-    VkDeviceMemory directionalLightShadowMapDepthImageMemory;
-    VkImageView directionalLightShadowMapDepthImageView;
+	VkImage directionalLightShadowMapDepthImage;
+	VkDeviceMemory directionalLightShadowMapDepthImageMemory;
+	std::vector<VkImageView> cubeShadowMapImageView;
+	VkImage depthCubeImage;
+    VkDeviceMemory depthCubeImageMemory;
+    VkImageView depthCubeImageView;
+
 	
     VkImage depthImage;
     VkDeviceMemory depthImageMemory;
@@ -327,7 +337,7 @@ private:
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
     VkSampler textureSampler;
-	VkSampler shadowMapTextureSampler;
+	VkSampler cubeShadowMapTextureSampler;
 
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
@@ -343,15 +353,15 @@ private:
     std::vector<VkDeviceMemory> uniformBuffersMemory2;
     std::vector<void*> uniformBuffersMapped2;
 
-    std::vector<VkBuffer> directionalLightShadowMapUniformBuffers;
-    std::vector<VkDeviceMemory> directionalLightShadowMapUniformBuffersMemory;
-    std::vector<void*> directionalLightShadowMapUniformBuffersMapped;
+    std::vector<VkBuffer> cubeShadowMapUniformBuffers;
+    std::vector<VkDeviceMemory> cubeShadowMapUniformBuffersMemory;
+    std::vector<void*> cubeShadowMapUniformBuffersMapped;
 	
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
 
-    VkDescriptorPool directionalLightShadowMapDescriptorPool;
-    std::vector<VkDescriptorSet> directionalLightShadowMapDescriptorSets;
+    VkDescriptorPool cubeShadowMapDescriptorPool;
+    std::vector<VkDescriptorSet> cubeShadowMapDescriptorSets;
 	
     std::vector<VkCommandBuffer> commandBuffers;
 
@@ -391,13 +401,55 @@ private:
         createIndexBuffer();
         createUniformBuffers();
 		createDirectionalLightShadowMapDescriptorPool();
-		createDirectionalLightShadowMapDescriptorSets();
+		createCubeShadowMapDescriptorSets();
         createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
     }
 
+	VkResult SetDebugObjectName(VkDevice device, const VkDebugUtilsObjectNameInfoEXT* objectNameInfo) {
+		auto func = (PFN_vkSetDebugUtilsObjectNameEXT) vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT");
+		if (func != nullptr) {
+			return func(device, objectNameInfo);
+		} else {
+			return VK_ERROR_EXTENSION_NOT_PRESENT;
+		}
+	}
+	
+	void setDebugImageName(VkImage image, const char* str) {
+		VkDebugUtilsObjectNameInfoEXT imageObjectInfo{};
+		imageObjectInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		std::string name = ConcatIntBetweenTwoStrings(VK_DEBUG_IMAGE_SET_RED, str, (uint64_t)image);
+		const char* strName = name.c_str();
+		imageObjectInfo.pObjectName = strName;
+		imageObjectInfo.objectType = VK_OBJECT_TYPE_IMAGE;
+		imageObjectInfo.objectHandle = (uint64_t)image;
+		SetDebugObjectName(device, &imageObjectInfo);
+	}
+
+	void setDebugImageViewName(VkImageView imageView, const char* str) {
+		VkDebugUtilsObjectNameInfoEXT imageViewObjectInfo{};
+		imageViewObjectInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		std::string name = ConcatIntBetweenTwoStrings(VK_DEBUG_IMAGE_SET_RED, str, (uint64_t)imageView);
+		const char* strName = name.c_str();
+		imageViewObjectInfo.pObjectName = strName;
+		imageViewObjectInfo.objectType = VK_OBJECT_TYPE_IMAGE_VIEW;
+		imageViewObjectInfo.objectHandle = (uint64_t)imageView;
+		SetDebugObjectName(device, &imageViewObjectInfo);
+	}
+
+	void setDebugDescriptorSetName(VkDescriptorSet descriptorSet, const char* str) {
+		VkDebugUtilsObjectNameInfoEXT descriptrSetObjectInfo{};
+		descriptrSetObjectInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		std::string name = ConcatIntBetweenTwoStrings(VK_DEBUG_IMAGE_SET_RED, str, (uint64_t)descriptorSet);
+		const char* strName = name.c_str();
+		descriptrSetObjectInfo.pObjectName = strName;
+		descriptrSetObjectInfo.objectType = VK_OBJECT_TYPE_DESCRIPTOR_SET;
+		descriptrSetObjectInfo.objectHandle = (uint64_t)descriptorSet;
+		SetDebugObjectName(device, &descriptrSetObjectInfo);
+	}
+	
     void mainLoop() {
         while (1) {
             drawFrame();
@@ -679,7 +731,7 @@ private:
         swapChainImageViews.resize(swapChainImages.size());
 
         for (uint32_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, " swap chain image view ");
         }
     }
 
@@ -810,7 +862,7 @@ private:
 		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 		layoutInfo.pBindings = bindings.data();
 
-		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &directionalLightShadowMapDescriptorSetLayout) != VK_SUCCESS) {
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &cubeShadowMapDescriptorSetLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
     }
@@ -842,8 +894,8 @@ private:
     }
 
     void createGraphicsPipeline() {
-        auto vertShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_test/testShaders/vertScene.spv");
-        auto fragShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_test/testShaders/fragScene.spv");
+        auto vertShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/vertScene.spv");
+        auto fragShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/fragScene.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
         VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -968,8 +1020,8 @@ private:
     }
 
     void createDirectionalLightShadowMapGraphicsPipeline() {
-        auto vertShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_test/testShaders/vertOffscreen.spv");
-		auto fragShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_test/testShaders/fragOffscreen.spv");
+        auto vertShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/vertOffscreen.spv");
+		auto fragShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/fragOffscreen.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
         VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -986,7 +1038,7 @@ private:
         fragShaderStageInfo.module = fragShaderModule;
         fragShaderStageInfo.pName = "main";
 
-        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo};
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1062,7 +1114,7 @@ private:
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &directionalLightShadowMapDescriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &cubeShadowMapDescriptorSetLayout;
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &directionalLightShadowMapPipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -1070,7 +1122,7 @@ private:
 
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount = 2;
+        pipelineInfo.stageCount = 1;
         pipelineInfo.pStages = shaderStages;
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -1116,11 +1168,11 @@ private:
             }
         }
 
-		directionalLightShadowMapSwapChainFramebuffers.resize(swapChainImageViews.size());
+		cubeShadowMapFramebuffers.resize(6);
 
-        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+        for (size_t i = 0; i < cubeShadowMapFramebuffers.size(); i++) {
             std::array<VkImageView, 1> attachments = {
-                directionalLightShadowMapDepthImageView
+                cubeShadowMapImageView[i],
             };
 
             VkFramebufferCreateInfo framebufferInfo{};
@@ -1128,11 +1180,11 @@ private:
             framebufferInfo.renderPass = directionalLightShadowMapRenderPass;
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.width = SHADOW_MAP_SIZE;
+            framebufferInfo.height = SHADOW_MAP_SIZE;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &directionalLightShadowMapSwapChainFramebuffers[i]) != VK_SUCCESS) {
+            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &cubeShadowMapFramebuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
@@ -1154,11 +1206,19 @@ private:
     void createDepthResources() {
         VkFormat depthFormat = findDepthFormat();
 
-        createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory, " default shadow map image ");
+        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, " default shadow map image view ");
 
-		createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, directionalLightShadowMapDepthImage, directionalLightShadowMapDepthImageMemory);
-        directionalLightShadowMapDepthImageView = createDirectionalLightShadowMapImageView(directionalLightShadowMapDepthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+		createCubeImage(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthCubeImage, depthCubeImageMemory, " cube map image ");
+
+		setDebugImageName(depthCubeImage, " main cube map image ");
+		
+		for ( unsigned int i = 0; i < 6; ++i ) {
+			cubeShadowMapImageView.push_back(createSelectCubeLayerImageView(depthCubeImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, i, 1,
+												 " cube map image layer "));
+		}
+
+		depthCubeImageView = createCubeImageView(depthCubeImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, " main cube map image view ");
     }
 
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
@@ -1208,7 +1268,7 @@ private:
 
         stbi_image_free(pixels);
 
-        createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+        createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, " texture image ");
 
         transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
@@ -1219,7 +1279,7 @@ private:
     }
 
     void createTextureImageView() {
-        textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+        textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, " texture image view ");
     }
 
     void createTextureSampler() {
@@ -1265,12 +1325,12 @@ private:
 		sampler.maxLod = 1.0f;
 		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
-        if (vkCreateSampler(device, &sampler, nullptr, &shadowMapTextureSampler) != VK_SUCCESS) {
+        if (vkCreateSampler(device, &sampler, nullptr, &cubeShadowMapTextureSampler) != VK_SUCCESS) {
             throw std::runtime_error("failed to create texture sampler!");
         }
     }
 	
-    VkImageView createDirectionalLightShadowMapImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+    VkImageView createCubeImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, const char* str) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = image;
@@ -1280,7 +1340,31 @@ private:
         viewInfo.subresourceRange.baseMipLevel = 0;
         viewInfo.subresourceRange.levelCount = 1;
         viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
+        viewInfo.subresourceRange.layerCount = 6;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+
+        VkImageView imageView;
+        if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture image view!");
+        }
+
+		setDebugImageViewName(imageView, str);
+		
+        return imageView;
+    }
+
+    VkImageView createSelectCubeLayerImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags,
+		                                       uint32_t baseArrayLayer, uint32_t layerCount, const char* str) {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = image;
+        viewInfo.format = format;
+		viewInfo.subresourceRange = {};
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = baseArrayLayer;
+        viewInfo.subresourceRange.layerCount = layerCount;
 		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
         VkImageView imageView;
@@ -1288,10 +1372,12 @@ private:
             throw std::runtime_error("failed to create texture image view!");
         }
 
+		setDebugImageViewName(imageView, str);
+		
         return imageView;
     }
 	
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, const char* str) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = image;
@@ -1308,10 +1394,12 @@ private:
             throw std::runtime_error("failed to create texture image view!");
         }
 
+		setDebugImageViewName(imageView, str);
+		
         return imageView;
     }
 
-    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, const char* str) {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -1331,6 +1419,8 @@ private:
             throw std::runtime_error("failed to create image!");
         }
 
+		setDebugImageName(image, str);
+		
         VkMemoryRequirements memRequirements;
         vkGetImageMemoryRequirements(device, image, &memRequirements);
 
@@ -1346,6 +1436,44 @@ private:
         vkBindImageMemory(device, image, imageMemory, 0);
     }
 
+    void createCubeImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, const char* str) {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 6;
+        imageInfo.format = format;
+        imageInfo.tiling = tiling;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = usage;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+
+        if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create image!");
+        }
+
+		setDebugImageName(image, str);
+		
+        VkMemoryRequirements memRequirements;
+        vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate image memory!");
+        }
+
+        vkBindImageMemory(device, image, imageMemory, 0);
+    }
+	
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -1483,14 +1611,14 @@ private:
 
 		VkDeviceSize directionalLightShadowMapBufferSize = sizeof(ShadowMapUBO);
 		
-		directionalLightShadowMapUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT * 2);
-        directionalLightShadowMapUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT * 2);
-        directionalLightShadowMapUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT * 2);
+		cubeShadowMapUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT * 6);
+        cubeShadowMapUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT * 6);
+        cubeShadowMapUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT * 6);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT * 2; i++) {
-            createBuffer(directionalLightShadowMapBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, directionalLightShadowMapUniformBuffers[i], directionalLightShadowMapUniformBuffersMemory[i]);
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT * 6; i++) {
+            createBuffer(directionalLightShadowMapBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, cubeShadowMapUniformBuffers[i], cubeShadowMapUniformBuffersMemory[i]);
 
-            vkMapMemory(device, directionalLightShadowMapUniformBuffersMemory[i], 0, directionalLightShadowMapBufferSize, 0, &directionalLightShadowMapUniformBuffersMapped[i]);
+            vkMapMemory(device, cubeShadowMapUniformBuffersMemory[i], 0, directionalLightShadowMapBufferSize, 0, &cubeShadowMapUniformBuffersMapped[i]);
         }
     }
 
@@ -1515,15 +1643,15 @@ private:
     void createDirectionalLightShadowMapDescriptorPool() {
         std::array<VkDescriptorPoolSize, 1> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(6);
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
+        poolInfo.maxSets = static_cast<uint32_t>(6);
 
-        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &directionalLightShadowMapDescriptorPool) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &cubeShadowMapDescriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
@@ -1549,8 +1677,8 @@ private:
 
             VkDescriptorImageInfo imageInfo2{};
             imageInfo2.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-            imageInfo2.imageView = directionalLightShadowMapDepthImageView;
-            imageInfo2.sampler = shadowMapTextureSampler;
+            imageInfo2.imageView = depthCubeImageView;
+            imageInfo2.sampler = cubeShadowMapTextureSampler;
 			
             std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
@@ -1571,32 +1699,34 @@ private:
             descriptorWrites[1].pImageInfo = &imageInfo2;
 			
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+			setDebugDescriptorSetName(descriptorSets[i], " main render pass descriptr set: ");
         }
     }
 
-    void createDirectionalLightShadowMapDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT * 2, directionalLightShadowMapDescriptorSetLayout);
+    void createCubeShadowMapDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(6, cubeShadowMapDescriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = directionalLightShadowMapDescriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
+        allocInfo.descriptorPool = cubeShadowMapDescriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(6);
         allocInfo.pSetLayouts = layouts.data();
 
-        directionalLightShadowMapDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT * 2);
-        if (vkAllocateDescriptorSets(device, &allocInfo, directionalLightShadowMapDescriptorSets.data()) != VK_SUCCESS) {
+        cubeShadowMapDescriptorSets.resize(6);
+        if (vkAllocateDescriptorSets(device, &allocInfo, cubeShadowMapDescriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT * 2; i++) {
+        for (size_t i = 0; i < 6; i++) {
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = directionalLightShadowMapUniformBuffers[i];
+            bufferInfo.buffer = cubeShadowMapUniformBuffers[i];
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(ShadowMapUBO);
 
             std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = directionalLightShadowMapDescriptorSets[i];
+            descriptorWrites[0].dstSet = cubeShadowMapDescriptorSets[i];
             descriptorWrites[0].dstBinding = 0;
             descriptorWrites[0].dstArrayElement = 0;
             descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1711,35 +1841,40 @@ private:
             throw std::runtime_error("failed to begin recording command buffer!");
         }
 
-        VkRenderPassBeginInfo directionalLightShadowMapRenderPassInfo{};
-        directionalLightShadowMapRenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        directionalLightShadowMapRenderPassInfo.renderPass = directionalLightShadowMapRenderPass;
-        directionalLightShadowMapRenderPassInfo.framebuffer = directionalLightShadowMapSwapChainFramebuffers[imageIndex];
-        directionalLightShadowMapRenderPassInfo.renderArea.offset = {0, 0};
-        directionalLightShadowMapRenderPassInfo.renderArea.extent = swapChainExtent;
+		unsigned int secondObjectIndex = 2 + currentFrame;
+		
+		for ( unsigned int i = 0; i < cubeShadowMapFramebuffers.size(); ++i ) {
+			VkRenderPassBeginInfo directionalLightShadowMapRenderPassInfo{};
+			directionalLightShadowMapRenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			directionalLightShadowMapRenderPassInfo.renderPass = directionalLightShadowMapRenderPass;
+			directionalLightShadowMapRenderPassInfo.framebuffer = cubeShadowMapFramebuffers[i];
+			directionalLightShadowMapRenderPassInfo.renderArea.offset = {0, 0};
+			directionalLightShadowMapRenderPassInfo.renderArea.extent.height = SHADOW_MAP_SIZE;
+			directionalLightShadowMapRenderPassInfo.renderArea.extent.width  = SHADOW_MAP_SIZE;
 
-        std::array<VkClearValue, 1> directionalLightShadowMapClearValues{};
-        directionalLightShadowMapClearValues[0].depthStencil = {1.0f, 0};
+			std::array<VkClearValue, 1> directionalLightShadowMapClearValues{};
+			directionalLightShadowMapClearValues[0].depthStencil = {1.0f, 0};
 
-        directionalLightShadowMapRenderPassInfo.clearValueCount = static_cast<uint32_t>(directionalLightShadowMapClearValues.size());
-        directionalLightShadowMapRenderPassInfo.pClearValues = directionalLightShadowMapClearValues.data();
+			directionalLightShadowMapRenderPassInfo.clearValueCount = static_cast<uint32_t>(directionalLightShadowMapClearValues.size());
+			directionalLightShadowMapRenderPassInfo.pClearValues = directionalLightShadowMapClearValues.data();
 
-        vkCmdBeginRenderPass(commandBuffer, &directionalLightShadowMapRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBeginRenderPass(commandBuffer, &directionalLightShadowMapRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapGraphicsPipeline);
 
             VkViewport directionalLightShadowMapViewport{};
             directionalLightShadowMapViewport.x = 0.0f;
             directionalLightShadowMapViewport.y = 0.0f;
-            directionalLightShadowMapViewport.width = (float) swapChainExtent.width;
-            directionalLightShadowMapViewport.height = (float) swapChainExtent.height;
+            directionalLightShadowMapViewport.width = (float) SHADOW_MAP_SIZE;
+            directionalLightShadowMapViewport.height = (float) SHADOW_MAP_SIZE;
             directionalLightShadowMapViewport.minDepth = 0.0f;
             directionalLightShadowMapViewport.maxDepth = 1.0f;
             vkCmdSetViewport(commandBuffer, 0, 1, &directionalLightShadowMapViewport);
 
             VkRect2D directionalLightShadowMapScissor{};
             directionalLightShadowMapScissor.offset = {0, 0};
-            directionalLightShadowMapScissor.extent = swapChainExtent;
+			directionalLightShadowMapScissor.extent.height = SHADOW_MAP_SIZE;
+			directionalLightShadowMapScissor.extent.width  = SHADOW_MAP_SIZE;
             vkCmdSetScissor(commandBuffer, 0, 1, &directionalLightShadowMapScissor);
 
             VkBuffer directionalLightShadowMapVertexBuffers[] = {vertexBuffer};
@@ -1748,18 +1883,21 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 1.5f);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[currentFrame], 0, nullptr);
+			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, 0.0f, 1.0f), 3.7f, i);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &cubeShadowMapDescriptorSets[i], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-			unsigned int secondObjectIndex = 2 + currentFrame;
-			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, 10.0f, 0.0f), 10.5);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &directionalLightShadowMapDescriptorSets[secondObjectIndex], 0, nullptr);
+
+			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.0f, 0.0f), 0.5, i);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &cubeShadowMapDescriptorSets[i], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 			
-        vkCmdEndRenderPass(commandBuffer);
+			vkCmdEndRenderPass(commandBuffer);
+		}
+			
+
 		
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1769,12 +1907,14 @@ private:
         renderPassInfo.renderArea.extent = swapChainExtent;
 
         std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {{1.0f, 1.0f, 1.0f, 1.0f}};
+        clearValues[0].color = {{0.3f, 0.3f, 0.3f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
+
+		
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -1799,12 +1939,13 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateUniformBuffer(currentFrame, glm::vec3(0.0f, -4.5f, 0.0f), 1.0f);
+			updateUniformBuffer(currentFrame, glm::vec3(0.0f, 0.0f, 1.0f), 3.7f);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
-
+//			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descriptorSets[currentFrame], 0, nullptr);
+			
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, 10.0f, 0.0f), 10.5);
+			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.0f, 0.0f), 0.5);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1846,12 +1987,84 @@ private:
         }
     }
 
-    void updateDirectionalLightShadowMapUniformBuffer(uint32_t currentImage, glm::vec3 objectPosition, float scale) {
+    void updateDirectionalLightShadowMapUniformBuffer(uint32_t currentImage, glm::vec3 objectPosition, float scale,
+													  uint32_t layer) {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
+		glm::vec3 positionVectorLight  = g_lightPositoin;
+		glm::vec3 directionalVectorLight = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 upVector = { 0.0, 0.0, 0.0 };
+
+		g_lightPositoin.x = cos(glm::radians(time * 360.0f)) * 5;
+		
+		// switch(currentImage) {
+		// case 0:
+		// 	/// Positive X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f, 0.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 1:
+		// 	/// Negative X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 2:
+		// 	/// Positive Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+		// 	break;
+		// case 3:
+		// 	/// Negative Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+		// 	break;
+		// case 4:
+		// 	/// Positive Z
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 5:
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// }
+
+		switch(layer) {
+		case 0:
+			/// Positive X
+			directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f, 0.0f);
+			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+			break;
+		case 1:
+			/// Negative X
+			directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
+			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+			break;
+		case 2:
+			/// Positive Y
+			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+			upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+			break;
+		case 3:
+			/// Negative Y
+			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
+			upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+			break;
+		case 4:
+			/// Positive Z
+			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
+			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+			break;
+		case 5:
+			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+			break;
+		}
+
+		
         ShadowMapUBO ubo{};
 //        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 		glm::mat4 model = glm::mat4(1.0f);
@@ -1867,21 +2080,21 @@ private:
 		// model[1][3] = objectPosition[1];
 		// model[2][3] = objectPosition[2];
 		
-		g_lightPositoin.x = cos(glm::radians(time * 360.0f)) * 5;
+
 //		g_lightPositoin.y = sin(glm::radians(time * 360.0f));
 //		g_lightPositoin.z = sin(glm::radians(time * 36.0f));
 
 //		g_lightPositoin = glm::vec3(sin(time) + cos(time), 2.0f, -30.0);
-		glm::mat4 view = glm::lookAt(g_lightPositoin, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f));
-		// glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
-		glm::mat4 proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f,
-													  0.1f, 30.0f);
+		glm::mat4 view = glm::lookAt(g_lightPositoin, directionalVectorLight, upVector);
+		glm::mat4 proj = glm::perspective(glm::radians(90.0f), SHADOW_MAP_SIZE / (float) SHADOW_MAP_SIZE, 1.0f, 100.0f);
+		//glm::mat4 proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f,
+//													  0.1f, 30.0f);
 
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
-//        ubo.proj[1][1] *= -1;
+        ubo.proj[1][1] *= -1;
 
-		std::cout << glm::to_string(view) << std::endl;
+//		std::cout << glm::to_string(view) << std::endl;
 		
 		ubo.model = model;
 		ubo.view = view;
@@ -1890,7 +2103,7 @@ private:
 //		ubo.mvp = proj * view * model;
 		lightSpaceMatrix = proj * view;
 		
-        memcpy(directionalLightShadowMapUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        memcpy(cubeShadowMapUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
 	
@@ -1915,11 +2128,10 @@ private:
 		// ubo.model[0][3] = objectPosition[0];
 		// ubo.model[1][3] = objectPosition[1];
 		// ubo.model[2][3] = objectPosition[2];
-		
-		glm::mat4 view = glm::lookAt(g_viewPosition, glm::vec3(2.0f, 3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		// glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 50.0f);
-		glm::mat4 proj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f,
-													  0.1f, 200.0f);
+		glm::vec3 viewDirection = glm::vec3(0.0f, 0.0f, 1.0f);
+		glm::mat4 view = glm::lookAt(g_viewPosition, viewDirection, glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::mat4 proj = glm::perspective(glm::radians(90.0f), swapChainExtent.width / (float) swapChainExtent.height, 1.0f, 100.0f);
+//		glm::mat4 proj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 20.0f);
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
 //        ubo.proj[1][1] *= -1;
