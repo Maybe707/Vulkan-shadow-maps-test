@@ -10,10 +10,10 @@ layout (binding = 0) uniform UBO
 	mat4 projection;
 } ubo;
 
-out gl_PerVertex 
-{
-    vec4 gl_Position;   
-};
+// out gl_PerVertex 
+// {
+//     vec4 gl_Position;   
+// };
 
  
 void main()

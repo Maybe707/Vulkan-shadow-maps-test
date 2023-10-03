@@ -51,9 +51,9 @@ const uint32_t HEIGHT = 600;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //glm::vec3 g_lightColor =  glm::vec3(1.0f, 1.0f, 1.0f);
-glm::vec3 g_lightPositoin = glm::vec3(0.0f, -7.5f, 0.0f);
+glm::vec3 g_lightPositoin = glm::vec3(0.0f, 5.0f, -15.5f);
 // glm::vec3 g_objectColor = glm::vec3(1.0f, 0.5f, 0.31f);
-glm::vec3 g_viewPosition = glm::vec3(1.5f, -7.0f, -5.5f);
+glm::vec3 g_viewPosition = glm::vec3(1.5f, -7.5f, -5.5f);
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -1021,6 +1021,7 @@ private:
 
     void createDirectionalLightShadowMapGraphicsPipeline() {
         auto vertShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/vertOffscreen.spv");
+//		auto vertShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/vertScene.spv");
 		auto fragShaderCode = readFile("/home/cyberdemon/cyberdemon_code/C++/vk_shadows_point_light_sand_box/vk_test/testShaders/fragOffscreen.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -1643,13 +1644,13 @@ private:
     void createDirectionalLightShadowMapDescriptorPool() {
         std::array<VkDescriptorPoolSize, 1> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(6);
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(12);
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(6);
+        poolInfo.maxSets = static_cast<uint32_t>(12);
 
         if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &cubeShadowMapDescriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
@@ -1705,19 +1706,19 @@ private:
     }
 
     void createCubeShadowMapDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(6, cubeShadowMapDescriptorSetLayout);
+        std::vector<VkDescriptorSetLayout> layouts(12, cubeShadowMapDescriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = cubeShadowMapDescriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(6);
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(12);
         allocInfo.pSetLayouts = layouts.data();
 
-        cubeShadowMapDescriptorSets.resize(6);
+        cubeShadowMapDescriptorSets.resize(12);
         if (vkAllocateDescriptorSets(device, &allocInfo, cubeShadowMapDescriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
-        for (size_t i = 0; i < 6; i++) {
+        for (size_t i = 0; i < 12; i++) {
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = cubeShadowMapUniformBuffers[i];
             bufferInfo.offset = 0;
@@ -1844,6 +1845,7 @@ private:
 		unsigned int secondObjectIndex = 2 + currentFrame;
 		
 		for ( unsigned int i = 0; i < cubeShadowMapFramebuffers.size(); ++i ) {
+//			std::cout << i << std::endl;
 			VkRenderPassBeginInfo directionalLightShadowMapRenderPassInfo{};
 			directionalLightShadowMapRenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			directionalLightShadowMapRenderPassInfo.renderPass = directionalLightShadowMapRenderPass;
@@ -1883,14 +1885,14 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateDirectionalLightShadowMapUniformBuffer(currentFrame, glm::vec3(0.0f, 0.0f, 1.0f), 3.7f, i);
+			updateDirectionalLightShadowMapUniformBuffer(i, glm::vec3(0.0f, 5.0f, 0.0f), 2.7f, i);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &cubeShadowMapDescriptorSets[i], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 
-			updateDirectionalLightShadowMapUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.0f, 0.0f), 0.5, i);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &cubeShadowMapDescriptorSets[i], 0, nullptr);
+			updateDirectionalLightShadowMapUniformBuffer(6 + i, glm::vec3(0.0f, 0.0f, 5.0f), 0.5, i);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, directionalLightShadowMapPipelineLayout, 0, 1, &cubeShadowMapDescriptorSets[6 + i], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 			
@@ -1939,13 +1941,13 @@ private:
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-			updateUniformBuffer(currentFrame, glm::vec3(0.0f, 0.0f, 1.0f), 3.7f);
+			updateUniformBuffer(currentFrame, glm::vec3(0.0f, 5.0f, 0.0f), 2.7f);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 //			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descriptorSets[currentFrame], 0, nullptr);
 			
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, -5.0f, 0.0f), 0.5);
+			updateUniformBuffer(secondObjectIndex, glm::vec3(0.0f, 0.0f, 5.0f), 0.5);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[secondObjectIndex], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -1998,7 +2000,7 @@ private:
 		glm::vec3 directionalVectorLight = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::vec3 upVector = { 0.0, 0.0, 0.0 };
 
-		g_lightPositoin.x = cos(glm::radians(time * 360.0f)) * 5;
+//		g_lightPositoin.x = cos(glm::radians(time * 360.0f)) * 5;
 		
 		// switch(currentImage) {
 		// case 0:
@@ -2032,38 +2034,194 @@ private:
 		// 	break;
 		// }
 
-		switch(layer) {
-		case 0:
-			/// Positive X
-			directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f, 0.0f);
-			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
-			break;
-		case 1:
-			/// Negative X
-			directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
-			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
-			break;
-		case 2:
-			/// Positive Y
-			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
-			upVector = glm::vec3(0.0f, 0.0f,  1.0f);
-			break;
-		case 3:
-			/// Negative Y
-			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
-			upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
-			break;
-		case 4:
-			/// Positive Z
-			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
-			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
-			break;
-		case 5:
-			directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
-			upVector = glm::vec3(0.0f, -1.0f,  0.0f);
-			break;
-		}
+		// switch(currentImage) {
+		// case 0:
+		// 	/// Positive X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f, 0.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// case 1:
+		// 	/// Negative X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// case 2:
+		// 	/// Positive Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+		// 	break;
+		// case 3:
+		// 	/// Negative Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+		// 	break;
+		// case 4:
+		// 	/// Positive Z
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// case 5:
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// }
+		
+		// unsigned int currentLayer = layer + 18;
+		
+		// switch(currentLayer) {
+		// case 0:
+		// 	/// Positive X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f, 0.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 1:
+		// 	/// Negative X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// case 2:
+		// 	/// Positive Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+		// 	break;
+		// case 3:
+		// 	/// Negative Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+		// 	break;
+		// case 4:
+		// 	/// Positive Z
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 5:
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// case 6:
+		// 	/// Positive X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f, 0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+		// 	break;
+		// case 7:
+		// 	/// Negative X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( -1.0f,  0.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+		// 	break;
+		// case 8:
+		// 	/// Positive Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+		// 	upVector = glm::vec3(1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 9:
+		// 	/// Negative Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+		// 	upVector = glm::vec3(-1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 10:
+		// 	/// Positive Z
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+		// 	break;
+		// case 11:
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+		// 	break;
+		// case 12:
+		// 	/// Positive X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f, 0.0f);
+		// 	upVector = glm::vec3(1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 13:
+		// 	/// Negative X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
+		// 	upVector = glm::vec3(-1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 14:
+		// 	/// Positive Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  1.0f);
+		// 	break;
+		// case 15:
+		// 	/// Negative Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  -1.0f,  0.0f);
+		// 	upVector = glm::vec3(0.0f, 0.0f,  -1.0f);
+		// 	break;
+		// case 16:
+		// 	/// Positive Z
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
+		// 	upVector = glm::vec3(1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 17:
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
+		// 	upVector = glm::vec3(-1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 18:
+		// 	/// Positive X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f, 1.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 19:
+		// 	/// Negative X
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  1.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// case 20:
+		// 	/// Positive Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+		// 	upVector = glm::vec3(1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 21:
+		// 	/// Negative Y
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+		// 	upVector = glm::vec3(-1.0f, 0.0f,  0.0f);
+		// 	break;
+		// case 22:
+		// 	/// Positive Z
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+		// 	upVector = glm::vec3(0.0f, 1.0f,  0.0f);
+		// 	break;
+		// case 23:
+		// 	directionalVectorLight = positionVectorLight + glm::vec3( 0.0f,  0.0f,  -1.0f);
+		// 	upVector = glm::vec3(0.0f, -1.0f,  0.0f);
+		// 	break;
+		// }
 
+
+		// glm::mat4 viewMatrix = glm::mat4(1.0f);
+
+		// switch (layer)
+		// {
+		// case 0: // POSITIVE_X
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// 	break;
+		// case 1:	// NEGATIVE_X
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// 	break;
+		// case 2:	// POSITIVE_Y
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// 	break;
+		// case 3:	// NEGATIVE_Y
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// 	break;
+		// case 4:	// POSITIVE_Z
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// 	break;
+		// case 5:	// NEGATIVE_Z
+		// 	viewMatrix = glm::rotate(viewMatrix, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		// 	break;
+		// }
+
+		// glm::vec3 traslate(0.0f);
+		// traslate = g_lightPositoin;
+		// viewMatrix = glm::translate(viewMatrix, -traslate);
+
+		// glm::mat4 viewMatrixLight(1.0);
+		// for ( unsigned int i = 0; i < 4; ++i )
+		// 	for ( unsigned int j = 0; j < 4; ++j )
+		// 		viewMatrixLight[i][j] = viewMatrix[i][j];
 		
         ShadowMapUBO ubo{};
 //        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -2076,6 +2234,8 @@ private:
 		model[3][1] = objectPosition[1];
 		model[3][2] = objectPosition[2];
 
+
+		
 		// model[0][3] = objectPosition[0];
 		// model[1][3] = objectPosition[1];
 		// model[2][3] = objectPosition[2];
@@ -2085,14 +2245,15 @@ private:
 //		g_lightPositoin.z = sin(glm::radians(time * 36.0f));
 
 //		g_lightPositoin = glm::vec3(sin(time) + cos(time), 2.0f, -30.0);
-		glm::mat4 view = glm::lookAt(g_lightPositoin, directionalVectorLight, upVector);
-		glm::mat4 proj = glm::perspective(glm::radians(90.0f), SHADOW_MAP_SIZE / (float) SHADOW_MAP_SIZE, 1.0f, 100.0f);
-		//glm::mat4 proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f,
-//													  0.1f, 30.0f);
+		directionalVectorLight = glm::vec3(0.0, 0.0, 1.0);
+		upVector = glm::vec3(0.0, 1.0, 0.0);
+		glm::mat4 view = glm::lookAt(g_lightPositoin, g_lightPositoin + directionalVectorLight, upVector);
+		glm::mat4 proj = glm::perspective(glm::radians(90.0f), SHADOW_MAP_SIZE / (float) SHADOW_MAP_SIZE, 0.1f, 100.0f);
+//		glm::mat4 proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 30.0f);
 
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
-        ubo.proj[1][1] *= -1;
+//        proj[1][1] *= -1;
 
 //		std::cout << glm::to_string(view) << std::endl;
 		
@@ -2128,9 +2289,9 @@ private:
 		// ubo.model[0][3] = objectPosition[0];
 		// ubo.model[1][3] = objectPosition[1];
 		// ubo.model[2][3] = objectPosition[2];
-		glm::vec3 viewDirection = glm::vec3(0.0f, 0.0f, 1.0f);
+		glm::vec3 viewDirection = glm::vec3(0.0f, 5.0f, 1.0f);
 		glm::mat4 view = glm::lookAt(g_viewPosition, viewDirection, glm::vec3(0.0f, 1.0f, 0.0f));
-		glm::mat4 proj = glm::perspective(glm::radians(90.0f), swapChainExtent.width / (float) swapChainExtent.height, 1.0f, 100.0f);
+		glm::mat4 proj = glm::perspective(glm::radians(90.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 100.0f);
 //		glm::mat4 proj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 20.0f);
 		// float distance = 1.0f;
 		// ubo.proj = perspective_glm(distance, -distance, distance, -distance, -distance, distance);
@@ -2151,7 +2312,7 @@ private:
 
     void drawFrame() {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-
+		
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
